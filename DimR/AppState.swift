@@ -9,14 +9,17 @@ final class AppState {
         didSet {
             idleMonitor.isEnabled = isEnabled
 
-            if !isEnabled {
-                setDimmed(false)
+            if isEnabled {
+                applyCurrentOverlayState(animated: true)
+            } else {
+                overlayManager.hide()
             }
 
             saveSettings()
         }
     }
 
+    private(set) var activeDimOpacity = 0.0
     private(set) var overlayOpacity = 0.7
     private(set) var idleTimeout = 60.0
     private(set) var isDimmed = false
@@ -27,6 +30,7 @@ final class AppState {
 
     @ObservationIgnored private let overlayManager: OverlayManager
     @ObservationIgnored private let idleMonitor: IdleMonitor
+    @ObservationIgnored private let brightnessKeyMonitor: BrightnessKeyMonitor
     @ObservationIgnored private let loginItemService = SMAppService.mainApp
     @ObservationIgnored private let settingsStore: SettingsStore
 
@@ -35,26 +39,41 @@ final class AppState {
         let settings = settingsStore.load()
         let overlayManager = OverlayManager()
         let idleMonitor = IdleMonitor(idleTimeout: settings.idleTimeout.clamped(to: 5.0...3600.0))
+        let brightnessKeyMonitor = BrightnessKeyMonitor()
 
         self.settingsStore = settingsStore
         self.overlayManager = overlayManager
         self.idleMonitor = idleMonitor
+        self.brightnessKeyMonitor = brightnessKeyMonitor
         self.isEnabled = settings.isEnabled
+        self.activeDimOpacity = settings.activeDimOpacity.clamped(to: 0.0...0.8)
         self.overlayOpacity = settings.overlayOpacity.clamped(to: 0.1...1.0)
         self.idleTimeout = settings.idleTimeout.clamped(to: 5.0...3600.0)
 
-        overlayManager.setOpacity(overlayOpacity)
         idleMonitor.isEnabled = isEnabled
         idleMonitor.onDimmedStateChange = { [weak self] shouldDim in
             self?.setDimmed(shouldDim)
         }
+
+        brightnessKeyMonitor.onBrightnessKey = { [weak self] direction in
+            self?.handleBrightnessKey(direction)
+        }
+
         idleMonitor.start()
+        brightnessKeyMonitor.start()
         refreshLoginItemStatus()
+        applyCurrentOverlayState(animated: false)
+    }
+
+    func setActiveDimOpacity(_ value: Double) {
+        activeDimOpacity = value.clamped(to: 0.0...0.8)
+        applyCurrentOverlayState(animated: true)
+        saveSettings()
     }
 
     func setOverlayOpacity(_ value: Double) {
         overlayOpacity = value.clamped(to: 0.1...1.0)
-        overlayManager.setOpacity(overlayOpacity)
+        applyCurrentOverlayState(animated: true)
         saveSettings()
     }
 
@@ -86,6 +105,7 @@ final class AppState {
 
     func quit() {
         overlayManager.hide()
+        brightnessKeyMonitor.stop()
         NSApp.terminate(nil)
     }
 
@@ -95,9 +115,21 @@ final class AppState {
         loginItemRequiresApproval = status == .requiresApproval
     }
 
+    private func handleBrightnessKey(_ direction: BrightnessKeyMonitor.Direction) {
+        let step = 0.05
+
+        switch direction {
+        case .up:
+            setActiveDimOpacity(activeDimOpacity - step)
+        case .down:
+            setActiveDimOpacity(activeDimOpacity + step)
+        }
+    }
+
     private func saveSettings() {
         let settings = AppSettings(
             isEnabled: isEnabled,
+            activeDimOpacity: activeDimOpacity,
             overlayOpacity: overlayOpacity,
             idleTimeout: idleTimeout
         )
@@ -114,12 +146,17 @@ final class AppState {
         guard isDimmed != shouldDim else { return }
 
         isDimmed = shouldDim
+        applyCurrentOverlayState(animated: true)
+    }
 
-        if shouldDim {
-            overlayManager.show()
-        } else {
-            overlayManager.hide()
+    private func applyCurrentOverlayState(animated: Bool) {
+        guard isEnabled else {
+            overlayManager.hide(animated: animated)
+            return
         }
+
+        let targetOpacity = isDimmed ? max(activeDimOpacity, overlayOpacity) : activeDimOpacity
+        overlayManager.setOpacity(targetOpacity, animated: animated)
     }
 }
 

@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 final class OverlayManager {
-    private var opacity = 0.7
+    private var currentOpacity = 0.0
     private var windows: [NSWindow] = []
     private var isVisible = false
     private var screenChangeObserver: NSObjectProtocol?
@@ -25,15 +25,35 @@ final class OverlayManager {
         }
     }
 
-    func setOpacity(_ value: Double) {
-        opacity = min(max(value, 0.1), 1.0)
+    func setOpacity(_ value: Double, animated: Bool) {
+        let opacity = min(max(value, 0.0), 1.0)
+        currentOpacity = opacity
 
-        if isVisible {
-            windows.forEach { $0.alphaValue = opacity }
+        guard opacity > 0.0 else {
+            hide(animated: animated)
+            return
+        }
+
+        showIfNeeded()
+        animateWindows(to: opacity, duration: animated ? 0.18 : 0.0)
+    }
+
+    func hide(animated: Bool = true) {
+        guard isVisible else { return }
+
+        currentOpacity = 0.0
+        isVisible = false
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = animated ? 0.15 : 0.0
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            windows.forEach { $0.animator().alphaValue = 0.0 }
+        } completionHandler: { [windows] in
+            windows.forEach { $0.orderOut(nil) }
         }
     }
 
-    func show() {
+    private func showIfNeeded() {
         guard !isVisible else { return }
 
         isVisible = true
@@ -43,25 +63,13 @@ final class OverlayManager {
             window.alphaValue = 0.0
             window.orderFrontRegardless()
         }
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            windows.forEach { $0.animator().alphaValue = opacity }
-        }
     }
 
-    func hide() {
-        guard isVisible else { return }
-
-        isVisible = false
-
+    private func animateWindows(to opacity: Double, duration: TimeInterval) {
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            windows.forEach { $0.animator().alphaValue = 0.0 }
-        } completionHandler: { [windows] in
-            windows.forEach { $0.orderOut(nil) }
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            windows.forEach { $0.animator().alphaValue = opacity }
         }
     }
 
@@ -73,7 +81,7 @@ final class OverlayManager {
         rebuildWindows()
 
         windows.forEach {
-            $0.alphaValue = opacity
+            $0.alphaValue = currentOpacity
             $0.orderFrontRegardless()
         }
     }

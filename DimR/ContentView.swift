@@ -34,7 +34,19 @@ struct ContentView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("Opacity")
+                    Text("Active Dim")
+                    Spacer()
+                    Text(appState.activeDimOpacity, format: .percent.precision(.fractionLength(0)))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Slider(value: activeDimOpacityBinding, in: 0.0...0.8, step: 0.05)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Idle Dim")
                     Spacer()
                     Text(appState.overlayOpacity, format: .percent.precision(.fractionLength(0)))
                         .foregroundStyle(.secondary)
@@ -78,6 +90,13 @@ struct ContentView: View {
         Binding(
             get: { appState.launchAtLogin },
             set: { appState.setLaunchAtLogin($0) }
+        )
+    }
+
+    private var activeDimOpacityBinding: Binding<Double> {
+        Binding(
+            get: { appState.activeDimOpacity },
+            set: { appState.setActiveDimOpacity($0) }
         )
     }
 

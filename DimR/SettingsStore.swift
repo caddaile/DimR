@@ -2,6 +2,7 @@ import Foundation
 
 struct AppSettings: Codable {
     var isEnabled: Bool = true
+    var activeDimOpacity: Double = 0.0
     var overlayOpacity: Double = 0.7
     var idleTimeout: Double = 60.0
 }
