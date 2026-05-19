@@ -100,11 +100,12 @@ final class OverlayManager {
         )
 
         // A borderless AppKit window gives precise control over macOS window
-        // levels and click-through behavior, which SwiftUI windows do not expose.
+        // levels, click-through behavior, and capture sharing policy.
         window.backgroundColor = .black
         window.isOpaque = false
         window.hasShadow = false
         window.ignoresMouseEvents = true
+        window.sharingType = .none
         window.level = .screenSaver
         window.collectionBehavior = [
             .canJoinAllSpaces,
